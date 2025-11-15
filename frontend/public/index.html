@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Iluminación Inteligente</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #fff;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 2.5em;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    h2 {
+      margin-bottom: 20px;
+      font-size: 1.5em;
+      border-bottom: 2px solid rgba(255,255,255,0.3);
+      padding-bottom: 10px;
+    }
+    .connection-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      backdrop-filter: blur(10px);
+      z-index: 1000;
+    }
+    .status-online { background: rgba(74, 222, 128, 0.9); color: #000; }
+    .status-offline { background: rgba(248, 113, 113, 0.9); color: #fff; }
+    .status-connecting { background: rgba(251, 191, 36, 0.9); color: #000; }
+    
+    .modo-switch {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .btn {
+      padding: 15px 40px;
+      border: none;
+      border-radius: 50px;
+      font-size: 1.1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-auto {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+    }
+    .btn-manual {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      color: white;
+    }
+    .btn-active {
+      box-shadow: 0 0 20px rgba(255,255,255,0.5);
+      transform: scale(1.05);
+    }
+    
+    .controls { display: grid; gap: 15px; }
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .slider-group label {
+      width: 120px;
+      font-weight: bold;
+    }
+    input[type="range"] {
+      flex: 1;
+      height: 8px;
+      border-radius: 5px;
+      outline: none;
+      background: rgba(255,255,255,0.3);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+    }
+    .value {
+      width: 60px;
+      text-align: right;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+    }
+    .stat-box {
+      background: rgba(255,255,255,0.15);
+      padding: 20px;
+      border-radius: 15px;
+      text-align: center;
+      transition: transform 0.3s;
+    }
+    .stat-box:hover {
+      transform: translateY(-5px);
+    }
+    .stat-value {
+      font-size: 1.8em;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    .stat-label {
+      opacity: 0.8;
+      font-size: 0.9em;
+    }
+    .stat-unit {
+      font-size: 0.7em;
+      opacity: 0.7;
+    }
+    
+    .brightness-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .brightness-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #fbbf24, #f59e0b);
+      transition: width 0.5s;
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .pulse { animation: pulse 2s infinite; }
+    
+    .umbral-info {
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+      font-size: 0.9em;
+    }
+    
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="connection-status status-connecting" id="connectionStatus">
+    🔄 Conectando...
+  </div>
+
+  <div class="container">
+    <h1>💡 Iluminación Inteligente</h1>
+    
+    <div class="card">
+      <h2>⚙️ Modo de Operación</h2>
+      <div class="modo-switch">
+        <button class="btn btn-auto" id="btnAuto" onclick="setModo('auto')">
+          🤖 AUTOMÁTICO
+        </button>
+        <button class="btn btn-manual" id="btnManual" onclick="setModo('manual')">
+          🎮 MANUAL
+        </button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="controlManual">
+      <h2>🎮 Control Manual de Brillo</h2>
+      <div class="controls">
+        <div class="slider-group">
+          <label>💡 Intensidad:</label>
+          <input type="range" id="brilloSlider" min="0" max="255" value="128" 
+                 oninput="updateBrilloPreview()" onchange="setBrillo()">
+          <span class="value" id="brilloValue">128</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>☀️ Sensor de Luz Ambiente (BH1750)</h2>
+      <div class="stats">
+        <div class="stat-box">
+          <div class="stat-label">💡 Luminosidad</div>
+          <div class="stat-value" id="lux">--</div>
+          <div class="stat-unit">lux</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">🔆 Brillo LED</div>
+          <div class="stat-value" id="brillo">--</div>
+          <div class="stat-unit">/ 255</div>
+          <div class="brightness-bar">
+            <div class="brightness-fill" id="brilloBar" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">📊 Condición</div>
+          <div class="stat-value" id="condicion" style="font-size: 1.3em;">--</div>
+        </div>
+      </div>
+      <div class="umbral-info">
+        <strong>⚙️ Configuración de Umbrales:</strong><br>
+        • Oscuro (< 50 lux): LED al 100% (255)<br>
+        • Medio (50-400 lux): Ajuste proporcional<br>
+        • Luminoso (> 400 lux): LED apagado (0)
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📊 Monitoreo Energético (INA219)</h2>
+      <div class="stats">
+        <div class="stat-box">
+          <div class="stat-label">🔌 Corriente</div>
+          <div class="stat-value" id="corriente">--</div>
+          <div class="stat-unit">mA</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">⚡ Potencia</div>
+          <div class="stat-value" id="potencia">--</div>
+          <div class="stat-unit">mW</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">📈 Energía Total</div>
+          <div class="stat-value" id="energia">--</div>
+          <div class="stat-unit">Wh</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">🔬 V. Shunt</div>
+          <div class="stat-value" id="vShunt">--</div>
+          <div class="stat-unit">mV</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🎯 Estado del Sistema</h2>
+      <div class="stats">
+        <div class="stat-box pulse" id="pirBox">
+          <div class="stat-label">🚶 Sensor PIR</div>
+          <div class="stat-value" id="pir">--</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">🔵 LED Debug</div>
+          <div class="stat-value" id="ledDebug">--</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">⏱️ Uptime ESP32</div>
+          <div class="stat-value" id="uptime">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // CONFIGURACIÓN
+    // ============================================
+    const BACKEND_URL = 'http://localhost:3000';
+    const WS_URL = 'ws://localhost:3000';
+    
+    let ws = null;
+    let reconnectInterval = null;
+    let isConnected = false;
+    
+    // ============================================
+    // WEBSOCKET
+    // ============================================
+    function connectWebSocket() {
+      ws = new WebSocket(WS_URL);
+      
+      ws.onopen = () => {
+        console.log('✅ WebSocket conectado');
+        isConnected = true;
+        updateConnectionStatus('online');
+        clearInterval(reconnectInterval);
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('📩 Mensaje recibido:', data);
+          
+          if (data.type === 'status_update') {
+            updateUI(data.data);
+          } else if (data.type === 'esp32_offline') {
+            updateConnectionStatus('offline');
+          } else if (data.type === 'modo_changed' || data.type === 'brillo_changed') {
+            // Actualización en tiempo real desde otro cliente
+            fetchStatus();
+          }
+        } catch (error) {
+          console.error('❌ Error parseando mensaje:', error);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('❌ Error WebSocket:', error);
+      };
+      
+      ws.onclose = () => {
+        console.log('❌ WebSocket desconectado');
+        isConnected = false;
+        updateConnectionStatus('connecting');
+        
+        // Reintentar conexión cada 3 segundos
+        reconnectInterval = setInterval(() => {
+          console.log('🔄 Reintentando conexión...');
+          connectWebSocket();
+        }, 3000);
+      };
+    }
+    
+    // ============================================
+    // FUNCIONES API
+    // ============================================
+    async function fetchStatus() {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/status`);
+        const data = await response.json();
+        updateUI(data);
+      } catch (error) {
+        console.error('❌ Error obteniendo estado:', error);
+        updateConnectionStatus('offline');
+      }
+    }
+    
+    async function setModo(modo) {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/modo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modo })
+        });
+        
+        if (response.ok) {
+          console.log(`✅ Modo cambiado a: ${modo}`);
+        }
+      } catch (error) {
+        console.error('❌ Error cambiando modo:', error);
+        alert('Error al cambiar modo. Verifica la conexión.');
+      }
+    }
+    
+    function updateBrilloPreview() {
+      const valor = document.getElementById('brilloSlider').value;
+      document.getElementById('brilloValue').textContent = valor;
+    }
+    
+    async function setBrillo() {
+      const brillo = parseInt(document.getElementById('brilloSlider').value);
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/brillo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brillo })
+        });
+        
+        if (response.ok) {
+          console.log(`✅ Brillo ajustado a: ${brillo}`);
+        }
+      } catch (error) {
+        console.error('❌ Error ajustando brillo:', error);
+        alert('Error al ajustar brillo. Verifica la conexión.');
+      }
+    }
+    
+    // ============================================
+    // ACTUALIZAR UI
+    // ============================================
+    function updateUI(data) {
+      if (!data) return;
+      
+      // Modo
+      const btnAuto = document.getElementById('btnAuto');
+      const btnManual = document.getElementById('btnManual');
+      const controlManual = document.getElementById('controlManual');
+      
+      if (data.modo === 'auto') {
+        btnAuto.classList.add('btn-active');
+        btnManual.classList.remove('btn-active');
+        controlManual.classList.add('hidden');
+      } else {
+        btnAuto.classList.remove('btn-active');
+        btnManual.classList.add('btn-active');
+        controlManual.classList.remove('hidden');
+      }
+      
+      // Luz
+      if (data.luz) {
+        document.getElementById('lux').textContent = data.luz.lux.toFixed(1);
+        document.getElementById('condicion').textContent = data.luz.condicion;
+      }
+      
+      // Brillo
+      const brillo = data.brillo_actual || 0;
+      document.getElementById('brillo').textContent = brillo;
+      const brilloPct = (brillo / 255 * 100).toFixed(0);
+      document.getElementById('brilloBar').style.width = brilloPct + '%';
+      
+      // Energía
+      if (data.energia) {
+        document.getElementById('corriente').textContent = data.energia.corriente_ma.toFixed(1);
+        document.getElementById('potencia').textContent = data.energia.potencia_mw.toFixed(1);
+        document.getElementById('energia').textContent = data.energia.energia_wh.toFixed(3);
+        document.getElementById('vShunt').textContent = data.energia.voltaje_shunt_mv.toFixed(2);
+      }
+      
+      // PIR
+      const pirBox = document.getElementById('pirBox');
+      if (data.pir) {
+        document.getElementById('pir').textContent = '🟢 Detectado';
+        document.getElementById('ledDebug').textContent = '🔵 ON';
+        pirBox.classList.add('pulse');
+      } else {
+        document.getElementById('pir').textContent = '⚫ Sin movimiento';
+        document.getElementById('ledDebug').textContent = '⚪ OFF';
+        pirBox.classList.remove('pulse');
+      }
+      
+      // Uptime
+      if (data.uptime_ms) {
+        const segundos = Math.floor(data.uptime_ms / 1000);
+        const minutos = Math.floor(segundos / 60);
+        const horas = Math.floor(minutos / 60);
+        document.getElementById('uptime').textContent = 
+          `${horas}h ${minutos % 60}m ${segundos % 60}s`;
+      }
+    }
+    
+    function updateConnectionStatus(status) {
+      const statusDiv = document.getElementById('connectionStatus');
+      statusDiv.className = 'connection-status';
+      
+      if (status === 'online') {
+        statusDiv.classList.add('status-online');
+        statusDiv.textContent = '🟢 Conectado';
+      } else if (status === 'offline') {
+        statusDiv.classList.add('status-offline');
+        statusDiv.textContent = '🔴 Desconectado';
+      } else {
+        statusDiv.classList.add('status-connecting');
+        statusDiv.textContent = '🔄 Conectando...';
+      }
+    }
+    
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
+    window.addEventListener('load', () => {
+      console.log('🚀 Iniciando aplicación...');
+      connectWebSocket();
+      fetchStatus(); // Obtener estado inicial
+    });
+  </script>
+</body>
+</html>
