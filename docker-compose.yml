@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: iot_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: iot_lighting
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - iot_network
+
+  # Backend Node.js
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: iot_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/iot_lighting?authSource=admin
+      JWT_SECRET: tu_super_secreto_cambiame_en_produccion_2024
+      ESP32_IP: 192.168.1.105
+      SESSION_SECRET: otra_clave_secreta_para_sesiones
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+    volumes:
+      - ./backend:/usr/src/app
+      - ./frontend:/usr/src/app/frontend
+      - /usr/src/app/node_modules
+    networks:
+      - iot_network
+
+  # Mongo Express (Admin UI - Opcional)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: iot_mongo_express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - iot_network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  iot_network:
+    driver: bridge

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login - IoT Lighting</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .login-container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .logo h1 {
+      color: #667eea;
+      font-size: 2em;
+      margin-bottom: 5px;
+    }
+    .logo p {
+      color: #666;
+      font-size: 0.9em;
+    }
+    .form-group {
+      margin-bottom: 25px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 600;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 1em;
+      transition: border-color 0.3s;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 15px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    .btn-secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+    .btn-secondary:hover {
+      background: #667eea;
+      color: white;
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .alert {
+      padding: 12px 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .alert-error {
+      background: #fee;
+      color: #c33;
+      border: 1px solid #fcc;
+    }
+    .alert-success {
+      background: #efe;
+      color: #3c3;
+      border: 1px solid #cfc;
+    }
+    .alert.show {
+      display: block;
+      animation: slideDown 0.3s ease;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .divider {
+      text-align: center;
+      margin: 20px 0;
+      color: #999;
+    }
+    .form-footer {
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+    }
+    .form-footer a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .form-footer a:hover {
+      text-decoration: underline;
+    }
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-left: 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .register-form { display: none; }
+    .register-form.active { display: block; }
+    .login-form.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo">
+      <h1>💡 IoT Lighting</h1>
+      <p>Sistema de Iluminación Inteligente</p>
+    </div>
+
+    <div id="alertBox" class="alert"></div>
+
+    <!-- Formulario de Login -->
+    <form id="loginForm" class="login-form">
+      <div class="form-group">
+        <label for="loginUsername">👤 Usuario o Email</label>
+        <input type="text" id="loginUsername" placeholder="Ingresa tu usuario" required>
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">🔒 Contraseña</label>
+        <input type="password" id="loginPassword" placeholder="Ingresa tu contraseña" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">
+        Iniciar Sesión
+      </button>
+      <div class="divider">───── o ─────</div>
+      <button type="button" class="btn btn-secondary" onclick="showRegister()">
+        Crear Cuenta Nueva
+      </button>
+    </form>
+
+    <!-- Formulario de Registro 
+    <form id="registerForm" class="register-form">
+      <div class="form-group">
+        <label for="regUsername">👤 Usuario</label>
+        <input type="text" id="regUsername" placeholder="Elige un nombre de usuario" minlength="3" required>
+      </div>
+      <div class="form-group">
+        <label for="regEmail">📧 Email</label>
+        <input type="email" id="regEmail" placeholder="tu@email.com" required>
+      </div>
+      <div class="form-group">
+        <label for="regPassword">🔒 Contraseña</label>
+        <input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" minlength="6" required>
+      </div>
+      <div class="form-group">
+        <label for="regPasswordConfirm">🔒 Confirmar Contraseña</label>
+        <input type="password" id="regPasswordConfirm" placeholder="Repite tu contraseña" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="registerBtn">
+        Registrarse
+      </button>
+      <div class="divider">───── o ─────</div>
+      <button type="button" class="btn btn-secondary" onclick="showLogin()">
+        Ya tengo cuenta
+      </button>
+    </form> -->
+
+    <!-- Formulario de Registro -->
+    <form id="registerForm" class="register-form">
+      <div class="alert alert-error" style="display: block; margin-bottom: 20px; text-align: center;">
+        <strong>🚫 Registro Deshabilitado</strong><br>
+        <span style="font-size: 0.9em;">
+          Este dashboard es tan exclusivo que solo 1 persona puede verlo. 🎩✨<br>
+          <em>(Y ese afortunado ya tiene cuenta)</em>
+        </span>
+      </div>
+      <div class="form-group" style="opacity: 0.5; pointer-events: none;">
+        <label for="regUsername">👤 Usuario</label>
+        <input type="text" id="regUsername" placeholder="Elige un nombre de usuario" minlength="3" disabled>
+      </div>
+      <div class="form-group" style="opacity: 0.5; pointer-events: none;">
+        <label for="regEmail">📧 Email</label>
+        <input type="email" id="regEmail" placeholder="tu@email.com" disabled>
+      </div>
+      <div class="form-group" style="opacity: 0.5; pointer-events: none;">
+        <label for="regPassword">🔒 Contraseña</label>
+        <input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" minlength="6" disabled>
+      </div>
+      <div class="form-group" style="opacity: 0.5; pointer-events: none;">
+        <label for="regPasswordConfirm">🔒 Confirmar Contraseña</label>
+        <input type="password" id="regPasswordConfirm" placeholder="Repite tu contraseña" disabled>
+      </div>
+      <button type="button" class="btn btn-primary" id="registerBtn" disabled style="opacity: 0.5; cursor: not-allowed;">
+        🔒 Registro No Disponible
+      </button>
+      <div class="divider">───── o ─────</div>
+      <button type="button" class="btn btn-secondary" onclick="showLogin()">
+        Volver al Login
+      </button>
+    </form>
+
+    <div class="form-footer">
+      <p>🔐 Conexión segura</p>
+      <p style="font-size: 0.8em; margin-top: 10px; opacity: 0.7;">
+        💡 Tip: El usuario admin tiene todos los poderes
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:3000';
+
+    // Verificar si ya hay sesión activa
+    window.addEventListener('load', () => {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        // Verificar validez del token
+        verifyToken(token);
+      }
+    });
+
+    async function verifyToken(token) {
+      try {
+        const response = await fetch(`${API_URL}/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          // Token válido, redirigir al dashboard
+          window.location.href = '/index.html';
+        } else {
+          // Token inválido, limpiar
+          localStorage.removeItem('authToken');
+        }
+      } catch (error) {
+        console.error('Error verificando token:', error);
+      }
+    }
+
+    // Login
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('loginBtn');
+      
+      if (!username || !password) {
+        showAlert('Por favor completa todos los campos', 'error');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.innerHTML = 'Ingresando... <span class="loading"></span>';
+      
+      try {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Guardar token
+          localStorage.setItem('authToken', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          
+          showAlert('¡Login exitoso! Redirigiendo...', 'success');
+          
+          setTimeout(() => {
+            window.location.href = '/index.html';
+          }, 1000);
+        } else {
+          showAlert(data.message || 'Credenciales incorrectas', 'error');
+          btn.disabled = false;
+          btn.innerHTML = 'Iniciar Sesión';
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión con el servidor', 'error');
+        btn.disabled = false;
+        btn.innerHTML = 'Iniciar Sesión';
+      }
+    });
+
+    // Registro
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('regUsername').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+      const btn = document.getElementById('registerBtn');
+      
+      if (password !== passwordConfirm) {
+        showAlert('Las contraseñas no coinciden', 'error');
+        return;
+      }
+      
+      if (password.length < 6) {
+        showAlert('La contraseña debe tener al menos 6 caracteres', 'error');
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.innerHTML = 'Registrando... <span class="loading"></span>';
+      
+      try {
+        const response = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Guardar token
+          localStorage.setItem('authToken', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          
+          showAlert('¡Registro exitoso! Redirigiendo...', 'success');
+          
+          setTimeout(() => {
+            window.location.href = '/index.html';
+          }, 1000);
+        } else {
+          const errorMsg = data.errors ? data.errors[0].msg : data.message;
+          showAlert(errorMsg || 'Error en el registro', 'error');
+          btn.disabled = false;
+          btn.innerHTML = 'Registrarse';
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión con el servidor', 'error');
+        btn.disabled = false;
+        btn.innerHTML = 'Registrarse';
+      }
+    });
+
+    function showAlert(message, type) {
+      const alertBox = document.getElementById('alertBox');
+      alertBox.className = `alert alert-${type} show`;
+      alertBox.textContent = message;
+      
+      setTimeout(() => {
+        alertBox.classList.remove('show');
+      }, 5000);
+    }
+
+    function showRegister() {
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('registerForm').classList.add('active');
+    }
+
+    function showLogin() {
+      document.getElementById('registerForm').classList.remove('active');
+      document.getElementById('loginForm').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>

@@ -48,6 +48,34 @@
     .status-offline { background: rgba(248, 113, 113, 0.9); color: #fff; }
     .status-connecting { background: rgba(251, 191, 36, 0.9); color: #000; }
     
+    .user-info {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      z-index: 1000;
+    }
+    .user-info button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(248, 113, 113, 0.9);
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .user-info button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
     .modo-switch {
       display: flex;
       justify-content: center;
@@ -180,6 +208,11 @@
   </style>
 </head>
 <body>
+  <div class="user-info" id="userInfo">
+    <span id="username">👤 Cargando...</span>
+    <button onclick="logout()">Cerrar Sesión</button>
+  </div>
+
   <div class="connection-status status-connecting" id="connectionStatus">
     🔄 Conectando...
   </div>
@@ -287,26 +320,51 @@
 
   <script>
     // ============================================
-    // CONFIGURACIÓN
+    // CONFIGURACIÓN Y AUTENTICACIÓN
     // ============================================
     const BACKEND_URL = 'http://localhost:3000';
     const WS_URL = 'ws://localhost:3000';
     
+    let authToken = null;
+    let currentUser = null;
     let ws = null;
     let reconnectInterval = null;
     let isConnected = false;
     
+    // Verificar autenticación al cargar
+    window.addEventListener('load', () => {
+      authToken = localStorage.getItem('authToken');
+      const userStr = localStorage.getItem('user');
+      
+      if (!authToken) {
+        window.location.href = '/login.html';
+        return;
+      }
+      
+      if (userStr) {
+        currentUser = JSON.parse(userStr);
+        document.getElementById('username').textContent = `👤 ${currentUser.username}`;
+      }
+      
+      console.log('🚀 Iniciando aplicación...');
+      connectWebSocket();
+      fetchStatus();
+    });
+    
     // ============================================
-    // WEBSOCKET
+    // WEBSOCKET CON AUTENTICACIÓN
     // ============================================
     function connectWebSocket() {
       ws = new WebSocket(WS_URL);
       
       ws.onopen = () => {
         console.log('✅ WebSocket conectado');
-        isConnected = true;
-        updateConnectionStatus('online');
-        clearInterval(reconnectInterval);
+        
+        // Autenticar WebSocket
+        ws.send(JSON.stringify({
+          type: 'auth',
+          token: authToken
+        }));
       };
       
       ws.onmessage = (event) => {
@@ -314,12 +372,19 @@
           const data = JSON.parse(event.data);
           console.log('📩 Mensaje recibido:', data);
           
-          if (data.type === 'status_update') {
+          if (data.type === 'auth_success') {
+            console.log('✅ WebSocket autenticado');
+            isConnected = true;
+            updateConnectionStatus('online');
+            clearInterval(reconnectInterval);
+          } else if (data.type === 'auth_error') {
+            console.error('❌ Error de autenticación WebSocket');
+            logout();
+          } else if (data.type === 'status_update') {
             updateUI(data.data);
           } else if (data.type === 'esp32_offline') {
             updateConnectionStatus('offline');
           } else if (data.type === 'modo_changed' || data.type === 'brillo_changed') {
-            // Actualización en tiempo real desde otro cliente
             fetchStatus();
           }
         } catch (error) {
@@ -336,7 +401,6 @@
         isConnected = false;
         updateConnectionStatus('connecting');
         
-        // Reintentar conexión cada 3 segundos
         reconnectInterval = setInterval(() => {
           console.log('🔄 Reintentando conexión...');
           connectWebSocket();
@@ -345,13 +409,39 @@
     }
     
     // ============================================
-    // FUNCIONES API
+    // FUNCIONES API CON AUTENTICACIÓN
     // ============================================
+    async function apiRequest(url, options = {}) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+        ...options.headers
+      };
+      
+      try {
+        const response = await fetch(url, { ...options, headers });
+        
+        if (response.status === 401) {
+          // Token inválido o expirado
+          console.error('❌ Sesión expirada');
+          logout();
+          return null;
+        }
+        
+        return response;
+      } catch (error) {
+        console.error('❌ Error en petición:', error);
+        throw error;
+      }
+    }
+    
     async function fetchStatus() {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/status`);
-        const data = await response.json();
-        updateUI(data);
+        const response = await apiRequest(`${BACKEND_URL}/api/status`);
+        if (response && response.ok) {
+          const data = await response.json();
+          updateUI(data);
+        }
       } catch (error) {
         console.error('❌ Error obteniendo estado:', error);
         updateConnectionStatus('offline');
@@ -360,13 +450,12 @@
     
     async function setModo(modo) {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/modo`, {
+        const response = await apiRequest(`${BACKEND_URL}/api/modo`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ modo })
         });
         
-        if (response.ok) {
+        if (response && response.ok) {
           console.log(`✅ Modo cambiado a: ${modo}`);
         }
       } catch (error) {
@@ -384,13 +473,12 @@
       const brillo = parseInt(document.getElementById('brilloSlider').value);
       
       try {
-        const response = await fetch(`${BACKEND_URL}/api/brillo`, {
+        const response = await apiRequest(`${BACKEND_URL}/api/brillo`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ brillo })
         });
         
-        if (response.ok) {
+        if (response && response.ok) {
           console.log(`✅ Brillo ajustado a: ${brillo}`);
         }
       } catch (error) {
@@ -399,13 +487,18 @@
       }
     }
     
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login.html';
+    }
+    
     // ============================================
     // ACTUALIZAR UI
     // ============================================
     function updateUI(data) {
       if (!data) return;
       
-      // Modo
       const btnAuto = document.getElementById('btnAuto');
       const btnManual = document.getElementById('btnManual');
       const controlManual = document.getElementById('controlManual');
@@ -420,19 +513,16 @@
         controlManual.classList.remove('hidden');
       }
       
-      // Luz
       if (data.luz) {
         document.getElementById('lux').textContent = data.luz.lux.toFixed(1);
         document.getElementById('condicion').textContent = data.luz.condicion;
       }
       
-      // Brillo
       const brillo = data.brillo_actual || 0;
       document.getElementById('brillo').textContent = brillo;
       const brilloPct = (brillo / 255 * 100).toFixed(0);
       document.getElementById('brilloBar').style.width = brilloPct + '%';
       
-      // Energía
       if (data.energia) {
         document.getElementById('corriente').textContent = data.energia.corriente_ma.toFixed(1);
         document.getElementById('potencia').textContent = data.energia.potencia_mw.toFixed(1);
@@ -440,7 +530,6 @@
         document.getElementById('vShunt').textContent = data.energia.voltaje_shunt_mv.toFixed(2);
       }
       
-      // PIR
       const pirBox = document.getElementById('pirBox');
       if (data.pir) {
         document.getElementById('pir').textContent = '🟢 Detectado';
@@ -452,7 +541,6 @@
         pirBox.classList.remove('pulse');
       }
       
-      // Uptime
       if (data.uptime_ms) {
         const segundos = Math.floor(data.uptime_ms / 1000);
         const minutos = Math.floor(segundos / 60);
@@ -477,15 +565,6 @@
         statusDiv.textContent = '🔄 Conectando...';
       }
     }
-    
-    // ============================================
-    // INICIALIZACIÓN
-    // ============================================
-    window.addEventListener('load', () => {
-      console.log('🚀 Iniciando aplicación...');
-      connectWebSocket();
-      fetchStatus(); // Obtener estado inicial
-    });
   </script>
 </body>
 </html>
