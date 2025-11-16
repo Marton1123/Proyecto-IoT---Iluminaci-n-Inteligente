@@ -1,6 +1,7 @@
 // ============================================
 // Backend Node.js + Express + WebSocket
 // ============================================
+const path = require('path');
 
 const express = require('express');
 const cors = require('cors');
@@ -11,13 +12,14 @@ const app = express();
 const PORT = 3000;
 
 // Configuración del ESP32
-const ESP32_IP = '192.168.1.100'; // ⚠️ CAMBIAR POR LA IP DE TU ESP32
+const ESP32_IP = '192.168.1.105'; // ⚠️ CAMBIAR POR LA IP DE TU ESP32
 const ESP32_API = `http://${ESP32_IP}`;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Para servir el frontend
+// Apuntar a la carpeta correcta del frontend
+app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 
 // ============================================
 // RUTAS API (Proxy al ESP32)
